@@ -1,18 +1,21 @@
 import { ServiceBusClient, ServiceBusAdministrationClient, CreateTopicOptions, CreateSubscriptionOptions, WithResponse, TopicProperties, SubscribeOptions, MessageHandlers, ServiceBusReceiver } from "@azure/service-bus";
 import { RestError } from "@azure/core-http";
 import { v4 as uuidv4 } from 'uuid';
+import { channel } from "diagnostic_channel";
 
 export class BusClient
 {
     private connectString: string;
     public serviceBusClient : ServiceBusClient
     private serviceBusAdministrationClient : ServiceBusAdministrationClient
+    private topicMap: Map<string, ServiceBusReceiver>
 
     public constructor(connectString: string)
     {
         this.connectString = connectString;
         this.serviceBusClient = new ServiceBusClient(this.connectString);
-        this.serviceBusAdministrationClient = new ServiceBusAdministrationClient(this.connectString)
+        this.serviceBusAdministrationClient = new ServiceBusAdministrationClient(this.connectString);
+        this.topicMap = new Map<string, ServiceBusReceiver>();
     }
 
     public async createTopic(topic: string)
@@ -81,11 +84,16 @@ export class BusClient
             processError: errorHandler
         };
         receiver.subscribe(handlers);
+        this.topicMap.set(topic, receiver);
     }
 
-    public async unSubscribe(receiver: ServiceBusReceiver)
+    public async unSubscribe(topic: string)
     {
-        await receiver.close();
+        let receiver = this.topicMap.get(topic);
+        if(receiver)
+        {
+            await receiver.close();
+        }
     }
 
     public async sendMessage(topic: string, message: any)
